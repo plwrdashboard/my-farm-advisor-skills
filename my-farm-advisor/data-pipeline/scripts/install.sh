@@ -151,9 +151,11 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+MY_FARM_ADVISOR_SKILL_ROOT="$(cd "${SKILL_DIR}/.." && pwd -P)"
 AUTHORITATIVE_SRC="${SKILL_DIR}/src"
 REQUIREMENTS_FILE="${SKILL_DIR}/requirements.txt"
 MANIFEST_NAME=".my-farm-advisor-source-manifest.sha256"
+SOURCE_LOCATOR_NAME=".my-farm-advisor-source.json"
 
 [[ -d "${AUTHORITATIVE_SRC}" ]] || die "authoritative source directory missing: ${AUTHORITATIVE_SRC}"
 [[ -f "${AUTHORITATIVE_SRC}/scripts/run_farm_pipeline.py" ]] || die "authoritative source is missing scripts/run_farm_pipeline.py"
@@ -384,6 +386,29 @@ with_runtime_lock() {
   fi
 }
 
+write_source_locator() {
+  local locator_path="${RUNTIME_BASE}/${SOURCE_LOCATOR_NAME}"
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    log "Dry run: would write source locator ${locator_path} with my_farm_advisor_skill_root=${MY_FARM_ADVISOR_SKILL_ROOT}"
+    return 0
+  fi
+  mkdir -p "${RUNTIME_BASE}"
+  python3 - "${locator_path}" "${MY_FARM_ADVISOR_SKILL_ROOT}" <<'PYSOURCELOCATOR'
+import json
+import sys
+from pathlib import Path
+
+locator_path = Path(sys.argv[1])
+skill_root = Path(sys.argv[2]).resolve(strict=False)
+payload = {
+    "my_farm_advisor_skill_root": str(skill_root),
+    "purpose": "Import-only checkout locator for runtime scripts; generated outputs stay under DATA_PIPELINE_DATA_ROOT/data-pipeline.",
+}
+locator_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PYSOURCELOCATOR
+  log "Wrote source locator to ${locator_path}"
+}
+
 install_dependencies() {
   if [[ "${INSTALL_DEPS}" -eq 0 ]]; then
     log "Skipping virtualenv/dependency installation because --no-install-deps was passed"
@@ -418,6 +443,7 @@ case "${PERSIST_MODE}" in
 esac
 
 with_runtime_lock
+write_source_locator
 install_dependencies
 
 log "Install complete. Runtime base: ${RUNTIME_BASE}"

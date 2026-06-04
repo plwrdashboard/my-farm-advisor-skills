@@ -7,29 +7,96 @@ import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DATA_ROOT = REPO_ROOT / "data" / "my-farm-advisor"
+from lib.runtime_paths import resolve_runtime_paths
+
+
+_RUNTIME_PATHS = resolve_runtime_paths()
+RUNTIME_BASE = _RUNTIME_PATHS.runtime_base
+RUNTIME_SOURCE = _RUNTIME_PATHS.runtime_source
+SOURCE_LOCATOR_PATH = RUNTIME_BASE / ".my-farm-advisor-source.json"
+DATA_ROOT = RUNTIME_BASE
+GROWERS_ROOT = DATA_ROOT / "growers"
+SHARED_ROOT = DATA_ROOT / "shared"
 DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
 DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
 DEFAULT_INVENTORY = Path(
     os.environ.get(
         "AG_INVENTORY_CSV",
-        f"data/my-farm-advisor/growers/{DEFAULT_GROWER}/farms/{DEFAULT_FARM}/manifests/field-inventory.csv",
+        str(
+            GROWERS_ROOT
+            / DEFAULT_GROWER
+            / "farms"
+            / DEFAULT_FARM
+            / "manifests"
+            / "field-inventory.csv"
+        ),
     )
 )
 
 
+def _candidate_skill_roots() -> list[Path]:
+    roots: list[Path] = [RUNTIME_SOURCE]
+
+    locator_root = _source_locator_skill_root()
+    if locator_root is not None:
+        roots.append(locator_root)
+
+    for env_name in ("MY_FARM_ADVISOR_SKILL_ROOT", "MY_FARM_ADVISOR_ROOT"):
+        raw = os.environ.get(env_name)
+        if raw:
+            roots.append(Path(raw).expanduser().resolve(strict=False))
+
+    install_script = os.environ.get("DATA_PIPELINE_INSTALL_SCRIPT")
+    if install_script:
+        install_path = Path(install_script).expanduser().resolve(strict=False)
+        if len(install_path.parents) >= 3:
+            roots.append(install_path.parents[2])
+
+    checkout_root = Path(__file__).resolve().parents[3]
+    if (checkout_root / "SKILL.md").exists():
+        roots.append(checkout_root)
+
+    unique_roots: list[Path] = []
+    seen: set[Path] = set()
+    for root in roots:
+        if root in seen:
+            continue
+        seen.add(root)
+        unique_roots.append(root)
+    return unique_roots
+
+
+def _source_locator_skill_root() -> Path | None:
+    if not SOURCE_LOCATOR_PATH.exists():
+        return None
+    try:
+        payload = json.loads(SOURCE_LOCATOR_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    raw = payload.get("my_farm_advisor_skill_root")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    candidate = Path(raw).expanduser().resolve(strict=False)
+    if not (candidate / "SKILL.md").exists():
+        return None
+    return candidate
+
+
 def ensure_skill_path(skill_name: str) -> Path:
-    direct = REPO_ROOT / "skills" / "my-farm-advisor" / skill_name / "src"
-    if direct.exists():
-        skill_path = direct
-    else:
-        matches = sorted(
-            (REPO_ROOT / "skills" / "my-farm-advisor").glob(f"**/{skill_name}/src")
+    matches: list[Path] = []
+    for root in _candidate_skill_roots():
+        direct = root / skill_name / "src"
+        if direct.exists():
+            matches.append(direct)
+        matches.extend(sorted(root.glob(f"**/{skill_name}/src")) if root.exists() else [])
+
+    if not matches:
+        searched = ", ".join(str(root) for root in _candidate_skill_roots())
+        raise FileNotFoundError(
+            f"Skill source path not found for '{skill_name}' under: {searched}"
         )
-        if not matches:
-            raise FileNotFoundError(f"Skill source path not found for '{skill_name}'")
-        skill_path = matches[0]
+
+    skill_path = matches[0]
     resolved = str(skill_path)
     if resolved not in sys.path:
         sys.path.insert(0, resolved)
@@ -37,7 +104,7 @@ def ensure_skill_path(skill_name: str) -> Path:
 
 
 def farm_root(grower_slug: str = DEFAULT_GROWER, farm_slug: str = DEFAULT_FARM) -> Path:
-    return DATA_ROOT / "growers" / grower_slug / "farms" / farm_slug
+    return GROWERS_ROOT / grower_slug / "farms" / farm_slug
 
 
 def fields_root(
@@ -48,7 +115,7 @@ def fields_root(
 
 def field_slugs_from_inventory(inventory_path: Path | None = None) -> list[str]:
     inventory = inventory_path or DEFAULT_INVENTORY
-    inventory = inventory if inventory.is_absolute() else REPO_ROOT / inventory
+    inventory = inventory if inventory.is_absolute() else DATA_ROOT / inventory
     if not inventory.exists():
         return []
     rows = inventory.read_text(encoding="utf-8").splitlines()
@@ -66,7 +133,7 @@ def field_slugs_from_inventory(inventory_path: Path | None = None) -> list[str]:
 
 def field_slug_map_from_inventory(inventory_path: Path | None = None) -> dict[str, str]:
     inventory = inventory_path or DEFAULT_INVENTORY
-    inventory = inventory if inventory.is_absolute() else REPO_ROOT / inventory
+    inventory = inventory if inventory.is_absolute() else DATA_ROOT / inventory
     if not inventory.exists():
         return {}
     rows = inventory.read_text(encoding="utf-8").splitlines()
