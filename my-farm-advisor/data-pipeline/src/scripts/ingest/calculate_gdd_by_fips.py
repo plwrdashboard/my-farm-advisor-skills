@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportMissingImports=false
 """Compute annual county GDD outputs from canonical county weather tables."""
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from pathlib import Path
 import pandas as pd
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _SCRIPTS_DIR.parents[2]
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 
@@ -25,12 +25,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _repo_relative(path: Path) -> str:
-    return str(path.resolve().relative_to(_REPO_ROOT))
+def _runtime_relative(path: Path, runtime_base: Path) -> str:
+    try:
+        return str(path.resolve(strict=False).relative_to(runtime_base))
+    except ValueError:
+        return str(path)
 
 
 def main() -> int:
     from paths import (
+        DATA_ROOT,
         shared_corn_gdd_table_path,
         shared_corn_maturity_metadata_dir,
         shared_weather_county_table_path,
@@ -74,8 +78,8 @@ def main() -> int:
             {
                 "year": args.year,
                 "weather_source": args.weather_source,
-                "gdd_path": _repo_relative(gdd_path),
-                "metadata_path": _repo_relative(metadata_path),
+                "gdd_path": _runtime_relative(gdd_path, DATA_ROOT),
+                "metadata_path": _runtime_relative(metadata_path, DATA_ROOT),
                 "county_count": int(len(county_gdd)),
                 "base_temp_c": float(args.base_temp_c),
                 "max_temp_c": float(args.max_temp_c),

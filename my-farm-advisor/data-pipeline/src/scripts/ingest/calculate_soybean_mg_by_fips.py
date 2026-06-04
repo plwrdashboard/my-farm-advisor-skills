@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportMissingImports=false
 """Compute heuristic annual soybean MG outputs from county lookup and GDD tables."""
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from pathlib import Path
 import pandas as pd
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _SCRIPTS_DIR.parents[2]
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 
@@ -24,12 +24,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _repo_relative(path: Path) -> str:
-    return str(path.resolve().relative_to(_REPO_ROOT))
+def _runtime_relative(path: Path, runtime_base: Path) -> str:
+    try:
+        return str(path.resolve(strict=False).relative_to(runtime_base))
+    except ValueError:
+        return str(path)
 
 
 def main() -> int:
     from paths import (
+        DATA_ROOT,
         shared_corn_gdd_table_path,
         shared_geoadmin_counties_dir,
         shared_soybean_maturity_metadata_dir,
@@ -77,12 +81,12 @@ def main() -> int:
         json.dumps(
             {
                 "year": args.year,
-                "mg_path": _repo_relative(mg_path),
-                "metadata_path": _repo_relative(metadata_path),
+                "mg_path": _runtime_relative(mg_path, DATA_ROOT),
+                "metadata_path": _runtime_relative(metadata_path, DATA_ROOT),
                 "county_count": int(len(county_mg)),
                 "latitude_intercept": float(args.latitude_intercept),
                 "latitude_slope": float(args.latitude_slope),
-                "mg_csv_path": _repo_relative(mg_csv_path),
+                "mg_csv_path": _runtime_relative(mg_csv_path, DATA_ROOT),
             },
             indent=2,
             sort_keys=True,

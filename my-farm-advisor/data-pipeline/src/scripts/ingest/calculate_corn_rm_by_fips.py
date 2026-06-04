@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportMissingImports=false
 """Compute heuristic annual corn RM outputs from county GDD tables."""
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from pathlib import Path
 import pandas as pd
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
-_REPO_ROOT = _SCRIPTS_DIR.parents[2]
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 
@@ -23,12 +23,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _repo_relative(path: Path) -> str:
-    return str(path.resolve().relative_to(_REPO_ROOT))
+def _runtime_relative(path: Path, runtime_base: Path) -> str:
+    try:
+        return str(path.resolve(strict=False).relative_to(runtime_base))
+    except ValueError:
+        return str(path)
 
 
 def main() -> int:
     from paths import (
+        DATA_ROOT,
         shared_corn_gdd_table_path,
         shared_corn_maturity_metadata_dir,
         shared_corn_rm_csv_path,
@@ -64,11 +68,11 @@ def main() -> int:
         json.dumps(
             {
                 "year": args.year,
-                "rm_path": _repo_relative(rm_path),
-                "metadata_path": _repo_relative(metadata_path),
+                "rm_path": _runtime_relative(rm_path, DATA_ROOT),
+                "metadata_path": _runtime_relative(metadata_path, DATA_ROOT),
                 "county_count": int(len(county_rm)),
                 "gdd_per_rm_c": float(args.gdd_per_rm_c),
-                "rm_csv_path": _repo_relative(rm_csv_path),
+                "rm_csv_path": _runtime_relative(rm_csv_path, DATA_ROOT),
             },
             indent=2,
             sort_keys=True,
