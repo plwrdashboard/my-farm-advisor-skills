@@ -137,8 +137,11 @@ Run the repository validation entrypoint to check that required files, provenanc
 
 What the validator checks:
 
-- Required skill entrypoints (`SKILL.md`, `README.md`) exist for every skill in the catalog.
+- Required skill entrypoints (`SKILL.md`, `README.md`, `INDEX.md`) exist for every skill in the catalog.
+- Top-level `SKILL.md` frontmatter names match their directory names so runtime discovery keys stay stable.
 - Import provenance files are present and contain required fields.
+- Markdown relative links and local heading anchors resolve.
+- Stale routing references to missing scripts or old skill paths are absent.
 - Forbidden paths (excluded old Superior Byteworks skills, generated `data/` outputs, `node_modules/`, `.cache/`) are absent from the tracked tree.
 - Large asset policy compliance (no unmanaged GeoJSON payloads, no unexpected binary blobs).
 
@@ -174,16 +177,19 @@ my-farm-advisor-skills/
 ├── my-farm-advisor/                   # umbrella skill
 │   ├── SKILL.md
 │   ├── README.md
+│   ├── INDEX.md
 │   ├── PROVENANCE.md
 │   └── ...
 ├── my-farm-breeding-trial-management/ # breeding trial skill
 │   ├── SKILL.md
 │   ├── README.md
+│   ├── INDEX.md
 │   ├── PROVENANCE.md
 │   └── ...
 └── my-farm-qtl-analysis/              # QTL analysis skill
     ├── SKILL.md
     ├── README.md
+    ├── INDEX.md
     ├── PROVENANCE.md
     └── ...
 ```
