@@ -10,11 +10,12 @@ tags: [nasa, power, weather, climate, agriculture, api, gdd]
 
 ## Description
 
-Download and analyze daily weather data from the NASA POWER (Prediction of Worldwide Energy Resources) API for agricultural field locations. The API is free, requires no authentication, and covers the entire globe at 0.5° resolution from 1981 to near-present.
+Download and analyze daily weather data from NASA POWER (Prediction of Worldwide Energy Resources) for agricultural field locations. Field-level examples use the free REST API. Shared county/L2 geoadmin rebuilds should use NASA POWER's public S3 Zarr stores to avoid large batches of point API requests.
 
 This workflow teaches agents to:
 
-- Query the NASA POWER REST API directly with `requests`
+- Query the NASA POWER REST API directly with `requests` for small field-level pulls
+- Use NASA POWER S3 Zarr stores for shared county/L2 geoadmin bulk weather tables
 - Parse the JSON response into `pandas` DataFrames
 - Calculate Growing Degree Days (GDD) for crop development tracking
 - Optionally use `xarray` for multi-dimensional weather analysis
@@ -27,6 +28,7 @@ This workflow teaches agents to:
 - **Crop modeling inputs**: Obtain GDD, accumulated precipitation, solar radiation totals
 - **Multi-year climate analysis**: Compare growing seasons across 2020-2024
 - **Field-level weather**: Extract weather at field centroids from boundary GeoJSON files
+- **County/L2 shared weather**: Build reusable weather-by-FIPS tables from S3 Zarr instead of the point API
 - **Irrigation planning**: Analyze precipitation deficits and evapotranspiration drivers
 
 ## Prerequisites
@@ -161,6 +163,18 @@ The API is free and requires no key. NASA asks that users:
 - Limit requests to avoid overloading (add a small delay between calls)
 - Cache results locally — the data does not change retroactively
 - Use the `AG` community for agricultural parameters
+
+For shared L2/county rebuilds, prefer the data-pipeline Zarr backend instead of the point API:
+
+```bash
+python scripts/run_maturity_by_fips.py \
+  --year 2025 \
+  --coverage traditional-corn-belt \
+  --weather-backend zarr \
+  --weather-time-standard lst
+```
+
+The Zarr backend reads meteorology from `merra2/temporal/power_merra2_daily_temporal_lst.zarr` and solar radiation from `syn1deg/temporal/power_syn1deg_daily_temporal_lst.zarr`, then writes the same `daily_weather_by_fips.parquet` schema under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/weather/nasa-power/<year>/`.
 
 ## Usage Examples
 
