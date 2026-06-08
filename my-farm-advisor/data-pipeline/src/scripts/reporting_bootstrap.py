@@ -17,8 +17,9 @@ SOURCE_LOCATOR_PATH = RUNTIME_BASE / ".my-farm-advisor-source.json"
 DATA_ROOT = RUNTIME_BASE
 GROWERS_ROOT = DATA_ROOT / "growers"
 SHARED_ROOT = DATA_ROOT / "shared"
-DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "default-grower")
+DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "default-farm")
+DEFAULT_FARM_NAME = os.environ.get("AG_FARM_NAME", "Default Farm")
 DEFAULT_INVENTORY = Path(
     os.environ.get(
         "AG_INVENTORY_CSV",
@@ -267,8 +268,9 @@ def ensure_canonical_field_artifacts(
 def ensure_canonical_data_tree(
     grower_slug: str = DEFAULT_GROWER,
     farm_slug: str = DEFAULT_FARM,
-    farm_name: str = "Iowa Demo Farm",
+    farm_name: str = DEFAULT_FARM_NAME,
     inventory_path: Path | None = None,
+    include_farm: bool = True,
 ) -> list[str]:
     (DATA_ROOT / "shared" / "weather").mkdir(parents=True, exist_ok=True)
     (DATA_ROOT / "shared" / "geoadmin" / "l0_countries" / "raw").mkdir(
@@ -377,6 +379,9 @@ def ensure_canonical_data_tree(
         },
         overwrite=False,
     )
+
+    if not include_farm:
+        return []
 
     grower = DATA_ROOT / "growers" / grower_slug
     grower.mkdir(parents=True, exist_ok=True)

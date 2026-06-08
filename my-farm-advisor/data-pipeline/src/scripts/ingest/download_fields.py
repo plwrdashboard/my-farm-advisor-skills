@@ -47,8 +47,8 @@ def main():
     print("Step 1: Load Farm Field Boundaries")
     print("=" * 60)
 
-    grower_slug = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-    farm_slug = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+    grower_slug = os.environ.get("AG_GROWER_SLUG", "default-grower")
+    farm_slug = os.environ.get("AG_FARM_SLUG", "default-farm")
     boundary_source_env = os.environ.get("AG_BOUNDARIES")
     default_inventory = farm_manifest_dir(grower_slug, farm_slug) / "field-inventory.csv"
     inventory_path = Path(os.environ.get("AG_INVENTORY_CSV", str(default_inventory)))

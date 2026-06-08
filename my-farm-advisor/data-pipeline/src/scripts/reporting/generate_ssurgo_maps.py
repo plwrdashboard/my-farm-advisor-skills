@@ -44,8 +44,8 @@ from paths import (
 )
 from reporting_bootstrap import field_slug_map_from_inventory
 
-_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "default-grower")
+_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "default-farm")
 
 PROPERTY_SPECS = [
     ("comppct_r", "Dominant Component", "%", "component_pct"),

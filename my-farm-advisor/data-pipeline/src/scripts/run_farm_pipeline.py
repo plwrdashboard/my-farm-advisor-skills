@@ -4,8 +4,8 @@ run_farm_pipeline.py — Master pipeline entrypoint.
 
 Usage:
     python src/scripts/run_farm_pipeline.py \\
-        --boundaries growers/iowa-demo-grower/farms/iowa-demo-farm/boundary/field_boundaries.geojson \\
-        [--farm-name "Iowa Demo Farm"] \\
+        --boundaries growers/<grower-slug>/farms/<farm-slug>/boundary/field_boundaries.geojson \\
+        [--farm-name "Default Farm"] \\
         [--force]
 
 Runs the full farm intelligence reporting pipeline from a single field
@@ -158,9 +158,9 @@ def main() -> None:
         default=None,
         help="Path to field boundaries GeoJSON",
     )
-    parser.add_argument("--farm-name", default="Iowa Demo Farm")
-    parser.add_argument("--grower-slug", default="iowa-demo-grower")
-    parser.add_argument("--farm-slug", default="iowa-demo-farm")
+    parser.add_argument("--farm-name", default="Default Farm")
+    parser.add_argument("--grower-slug", default="default-grower")
+    parser.add_argument("--farm-slug", default="default-farm")
     parser.add_argument(
         "--inventory-csv",
         default=None,

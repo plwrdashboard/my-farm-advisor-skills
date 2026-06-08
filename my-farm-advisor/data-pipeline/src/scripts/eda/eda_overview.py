@@ -6,7 +6,7 @@
 Creates an overview of all downloaded data and saves summary statistics.
 
 Input:  All downloaded data (fields, soil, weather, CDL)
-Output: growers/iowa-demo-grower/farms/iowa-demo-farm/derived/summaries/iowa_field_summary.csv under the runtime root, summary stats
+Output: growers/default-grower/farms/default-farm/derived/summaries/iowa_field_summary.csv under the runtime root, summary stats
 """
 
 import sys
@@ -26,8 +26,8 @@ from lib.paths import (  # noqa: E402
     shared_cdl_year_table_path,
 )
 
-_DEFAULT_GROWER = "iowa-demo-grower"
-_DEFAULT_FARM = "iowa-demo-farm"
+_DEFAULT_GROWER = "default-grower"
+_DEFAULT_FARM = "default-farm"
 
 
 def main():

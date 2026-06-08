@@ -41,7 +41,7 @@ def main() -> int:
     from reporting_bootstrap import ensure_canonical_data_tree, ensure_skill_path
 
     args = parse_args()
-    ensure_canonical_data_tree()
+    ensure_canonical_data_tree(include_farm=False)
     ensure_skill_path("maturity-by-fips")
 
     from maturity_by_fips import build_corn_rm_summary, compute_corn_rm

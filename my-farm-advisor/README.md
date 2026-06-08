@@ -90,8 +90,8 @@ ${DATA_PIPELINE_DATA_ROOT}/data-pipeline/
 
 Representative metadata files are generated into the runtime data tree when the pipeline runs:
 
-- grower metadata: `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/iowa-demo-grower/grower.json`
-- farm metadata: `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/iowa-demo-grower/farms/iowa-demo-farm/farm.json`
+- grower metadata: `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower_slug>/grower.json`
+- farm metadata: `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower_slug>/farms/<farm_slug>/farm.json`
 
 ## Deterministic Pipeline Entry Points
 

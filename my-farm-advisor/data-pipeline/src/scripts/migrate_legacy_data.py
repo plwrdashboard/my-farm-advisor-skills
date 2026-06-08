@@ -15,8 +15,8 @@ from lib.paths import (
 
 _CHECKOUT_SKILL_ROOT = Path(__file__).resolve().parents[3]
 _LEGACY_DATA_ROOT = _CHECKOUT_SKILL_ROOT / "data"
-_DEFAULT_GROWER = "iowa-demo-grower"
-_DEFAULT_FARM = "iowa-demo-farm"
+_DEFAULT_GROWER = "default-grower"
+_DEFAULT_FARM = "default-farm"
 
 _LEGACY_ROOTS = {
     "cdl": _LEGACY_DATA_ROOT / "cdl",

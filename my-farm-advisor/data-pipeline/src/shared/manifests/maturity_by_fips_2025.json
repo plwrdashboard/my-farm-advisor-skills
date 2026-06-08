@@ -9,14 +9,6 @@
       "updated_at": "2026-03-09T05:39:38Z",
       "output_paths": ["data/my-farm-advisor/shared/geoadmin/l2_counties/metadata.json"]
     },
-    "field-fips": {
-      "status": "skipped",
-      "output_path": "data/my-farm-advisor/growers/iowa-demo-grower/farms/iowa-demo-farm/derived/summaries/field_fips_mapping_summary.json",
-      "updated_at": "2026-03-09T05:39:38Z",
-      "output_paths": [
-        "data/my-farm-advisor/growers/iowa-demo-grower/farms/iowa-demo-farm/derived/summaries/field_fips_mapping_summary.json"
-      ]
-    },
     "county-weather": {
       "status": "skipped",
       "output_path": "data/my-farm-advisor/shared/weather/nasa-power/2025/daily_weather_by_fips.parquet",

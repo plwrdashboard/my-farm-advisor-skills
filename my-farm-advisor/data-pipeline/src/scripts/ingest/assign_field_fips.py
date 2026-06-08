@@ -26,8 +26,8 @@ def _runtime_relative(path: Path, runtime_base: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--grower-slug", default="iowa-demo-grower")
-    parser.add_argument("--farm-slug", default="iowa-demo-farm")
+    parser.add_argument("--grower-slug", default="default-grower")
+    parser.add_argument("--farm-slug", default="default-farm")
     parser.add_argument(
         "--inventory-path",
         type=Path,

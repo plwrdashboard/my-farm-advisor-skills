@@ -25,8 +25,8 @@ sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 
 from lib.paths import farm_reports_dir, farm_weather_path  # noqa: E402
 
-_DEFAULT_GROWER = "iowa-demo-grower"
-_DEFAULT_FARM = "iowa-demo-farm"
+_DEFAULT_GROWER = "default-grower"
+_DEFAULT_FARM = "default-farm"
 
 
 def main():

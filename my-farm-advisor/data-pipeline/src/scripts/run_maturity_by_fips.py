@@ -56,6 +56,16 @@ def parse_args() -> argparse.Namespace:
         default=0.5,
         help="Delay in seconds after each NASA POWER county-weather request",
     )
+    parser.add_argument(
+        "--grower-slug",
+        default=None,
+        help="Required only when --coverage field-mapped",
+    )
+    parser.add_argument(
+        "--farm-slug",
+        default=None,
+        help="Required only when --coverage field-mapped",
+    )
     return parser.parse_args()
 
 
@@ -84,7 +94,9 @@ def main() -> int:
     from reporting_bootstrap import ensure_canonical_data_tree, ensure_skill_path
 
     args = parse_args()
-    ensure_canonical_data_tree()
+    if args.coverage == "field-mapped" and (not args.grower_slug or not args.farm_slug):
+        raise SystemExit("--grower-slug and --farm-slug are required for --coverage field-mapped")
+    ensure_canonical_data_tree(include_farm=False)
     ensure_skill_path("maturity-by-fips")
 
     manifest_module = _module("manifest")
@@ -99,9 +111,12 @@ def main() -> int:
     shared_corn_maturity_metadata_dir = paths_module.shared_corn_maturity_metadata_dir
     shared_soybean_maturity_metadata_dir = paths_module.shared_soybean_maturity_metadata_dir
 
-    config = annual_maturity_config_cls(
-        year=args.year, weather_source=args.weather_source
-    )
+    config_kwargs = {"year": args.year, "weather_source": args.weather_source}
+    if args.grower_slug:
+        config_kwargs["grower_slug"] = args.grower_slug
+    if args.farm_slug:
+        config_kwargs["farm_slug"] = args.farm_slug
+    config = annual_maturity_config_cls(**config_kwargs)
     output_index = build_year_output_index(config)
     if args.list_steps:
         print(json.dumps(output_index, indent=2, sort_keys=True))
@@ -123,6 +138,25 @@ def main() -> int:
         }
     )
 
+    aggregate_weather_command = [
+        sys.executable,
+        str(SCRIPTS_ROOT / "ingest" / "aggregate_weather_by_fips.py"),
+        "--year",
+        str(args.year),
+        "--weather-source",
+        args.weather_source,
+        "--coverage",
+        args.coverage,
+        "--workers",
+        str(args.weather_workers),
+        "--request-delay",
+        str(args.weather_request_delay),
+    ]
+    if args.coverage == "field-mapped":
+        aggregate_weather_command.extend(
+            ["--grower-slug", args.grower_slug, "--farm-slug", args.farm_slug]
+        )
+
     steps: list[tuple[str, list[Path], list[str]]] = [
         (
             "geoadmin",
@@ -137,30 +171,12 @@ def main() -> int:
             ],
         ),
         (
-            "field-fips",
-            [field_fips_output],
-            [sys.executable, str(SCRIPTS_ROOT / "ingest" / "assign_field_fips.py")],
-        ),
-        (
             "county-weather",
             [
                 Path(output_index["county_weather"]),
                 Path(output_index["county_weather_summary"]),
             ],
-            [
-                sys.executable,
-                str(SCRIPTS_ROOT / "ingest" / "aggregate_weather_by_fips.py"),
-                "--year",
-                str(args.year),
-                "--weather-source",
-                args.weather_source,
-                "--coverage",
-                args.coverage,
-                "--workers",
-                str(args.weather_workers),
-                "--request-delay",
-                str(args.weather_request_delay),
-            ],
+            aggregate_weather_command,
         ),
         (
             "county-gdd",
@@ -225,6 +241,22 @@ def main() -> int:
             ],
         ),
     ]
+    if args.coverage == "field-mapped":
+        steps.insert(
+            1,
+            (
+                "field-fips",
+                [field_fips_output],
+                [
+                    sys.executable,
+                    str(SCRIPTS_ROOT / "ingest" / "assign_field_fips.py"),
+                    "--grower-slug",
+                    args.grower_slug,
+                    "--farm-slug",
+                    args.farm_slug,
+                ],
+            ),
+        )
 
     for step_name, output_paths, command in steps:
         step_record = dict(manifest["steps"].get(step_name, {}))

@@ -6,7 +6,7 @@
 Creates a multi-panel dashboard combining all key visualizations.
 
 Input:  All data and EDA outputs
-Output: growers/iowa-demo-grower/farms/iowa-demo-farm/derived/reports/iowa_summary_dashboard.png under the runtime root
+Output: growers/default-grower/farms/default-farm/derived/reports/iowa_summary_dashboard.png under the runtime root
 """
 
 import sys
@@ -31,8 +31,8 @@ from lib.paths import (  # noqa: E402
     shared_cdl_year_table_path,
 )
 
-_DEFAULT_GROWER = "iowa-demo-grower"
-_DEFAULT_FARM = "iowa-demo-farm"
+_DEFAULT_GROWER = "default-grower"
+_DEFAULT_FARM = "default-farm"
 
 
 def main():

@@ -20,7 +20,7 @@ cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
 ## Deterministic behavior
 
 - Sorts input boundaries by `field_id`.
-- Writes stable slug mapping to `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/iowa-demo-grower/farms/iowa-demo-farm/manifests/field-inventory.csv`.
+- Writes stable slug mapping to `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower_slug>/farms/<farm_slug>/manifests/field-inventory.csv`.
 - Uses fixed canonical output locations.
 - Verifies required files per field before reporting success.
 

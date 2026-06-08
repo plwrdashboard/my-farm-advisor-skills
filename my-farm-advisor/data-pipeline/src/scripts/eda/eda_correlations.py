@@ -31,8 +31,8 @@ from lib.paths import (  # noqa: E402
     farm_weather_path,
 )
 
-_DEFAULT_GROWER = "iowa-demo-grower"
-_DEFAULT_FARM = "iowa-demo-farm"
+_DEFAULT_GROWER = "default-grower"
+_DEFAULT_FARM = "default-farm"
 
 
 def main():

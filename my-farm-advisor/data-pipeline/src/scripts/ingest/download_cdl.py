@@ -83,8 +83,8 @@ def main():
     print("Step 4: Download CDL Crop Type Data")
     print("=" * 60)
 
-    grower_slug = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-    farm_slug = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+    grower_slug = os.environ.get("AG_GROWER_SLUG", "default-grower")
+    farm_slug = os.environ.get("AG_FARM_SLUG", "default-farm")
     force = os.environ.get("AG_FORCE") == "1"
     fields = gpd.read_file(farm_boundary_path(grower_slug, farm_slug))
     print(f"Loaded {len(fields)} fields")

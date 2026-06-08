@@ -23,8 +23,8 @@ def main():
     print("Step 3: Download NASA POWER Weather Data")
     print("=" * 60)
 
-    grower_slug = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-    farm_slug = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+    grower_slug = os.environ.get("AG_GROWER_SLUG", "default-grower")
+    farm_slug = os.environ.get("AG_FARM_SLUG", "default-farm")
     default_inventory = farm_manifest_dir(grower_slug, farm_slug) / "field-inventory.csv"
     inventory_path = Path(os.environ.get("AG_INVENTORY_CSV", str(default_inventory)))
     ensure_canonical_data_tree(

@@ -46,7 +46,7 @@ def main() -> int:
     from reporting_bootstrap import ensure_canonical_data_tree, ensure_skill_path
 
     args = parse_args()
-    ensure_canonical_data_tree()
+    ensure_canonical_data_tree(include_farm=False)
     ensure_skill_path("geoadmin-admin")
 
     geoadmin_admin = importlib.import_module("geoadmin_admin")

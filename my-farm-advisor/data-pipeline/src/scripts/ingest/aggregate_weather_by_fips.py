@@ -33,12 +33,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--grower-slug",
-        default="iowa-demo-grower",
+        default="default-grower",
         help="Used only when coverage=field-mapped",
     )
     parser.add_argument(
         "--farm-slug",
-        default="iowa-demo-farm",
+        default="default-farm",
         help="Used only when coverage=field-mapped",
     )
     parser.add_argument("--workers", type=int, default=5)
@@ -296,7 +296,11 @@ def main() -> int:
     from reporting_bootstrap import ensure_canonical_data_tree, ensure_skill_path
 
     args = parse_args()
-    ensure_canonical_data_tree(grower_slug=args.grower_slug, farm_slug=args.farm_slug)
+    ensure_canonical_data_tree(
+        grower_slug=args.grower_slug,
+        farm_slug=args.farm_slug,
+        include_farm=args.coverage == "field-mapped",
+    )
     ensure_skill_path("maturity-by-fips")
     ensure_skill_path("nasa-power-weather")
 

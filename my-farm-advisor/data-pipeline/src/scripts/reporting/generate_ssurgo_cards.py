@@ -42,8 +42,8 @@ from paths import (
 from reporting_bootstrap import field_slug_map_from_inventory
 
 _SCRIPT = Path(__file__)
-_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
+_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "default-grower")
+_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "default-farm")
 
 
 def plot_soil_properties_card(

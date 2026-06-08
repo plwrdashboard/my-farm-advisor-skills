@@ -35,9 +35,9 @@ from lib.satellite_imagery import (  # noqa: E402
 from reporting_bootstrap import ensure_skill_path  # noqa: E402
 
 _REPO = DATA_ROOT
-_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "iowa-demo-grower")
-_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "iowa-demo-farm")
-_DEFAULT_FARM_NAME = os.environ.get("AG_FARM_NAME", "Iowa Demo Farm")
+_DEFAULT_GROWER = os.environ.get("AG_GROWER_SLUG", "default-grower")
+_DEFAULT_FARM = os.environ.get("AG_FARM_SLUG", "default-farm")
+_DEFAULT_FARM_NAME = os.environ.get("AG_FARM_NAME", "Default Farm")
 _DEFAULT_INVENTORY = _REPO / "growers" / _DEFAULT_GROWER / "farms" / _DEFAULT_FARM / "manifests" / "field-inventory.csv"
 _FIELD_INVENTORY = Path(os.environ.get("AG_INVENTORY_CSV", str(_DEFAULT_INVENTORY)))
 
