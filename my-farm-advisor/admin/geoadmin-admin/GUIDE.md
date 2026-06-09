@@ -6,7 +6,7 @@ _Repo-native skill scaffold for shared geoadmin assets._
 
 ## 📋 Purpose
 
-This workflow owns shared geoadmin data handling for the repository, including canonical Level 0, Level 1, and Level 2 admin roots under `data/my-farm-advisor/shared/geoadmin/`.
+This workflow owns shared geoadmin data handling for the repository, including canonical Level 0, Level 1, and Level 2 admin roots under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/geoadmin/`.
 
 ## 📦 Scope
 
@@ -16,6 +16,6 @@ This workflow owns shared geoadmin data handling for the repository, including c
 
 ## 🔗 Integration
 
-- Code lives under `.opencode/skills/geoadmin-admin/src/`
-- Shared outputs live under `data/my-farm-advisor/shared/geoadmin/`
+- Code lives under `my-farm-advisor/admin/geoadmin-admin/src/`
+- Shared outputs live under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/geoadmin/`
 - Annual maturity scripts consume this skill through repo-native path helpers and bootstrap code
