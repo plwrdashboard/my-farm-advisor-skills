@@ -16,6 +16,7 @@ Read `README.md` first, then `../INDEX.md` and `../../SKILL.md` for routing cont
 
 - Required input: `--boundaries` pointing to field-boundary GeoJSON, usually under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/input/` or a canonical farm boundary path.
 - Optional farm inputs: `--grower-slug`, `--farm-slug`, `--farm-name`, `--inventory-csv`, `--weather-csv`, and `--force`.
+- If the user asks to initialize the data-pipeline and seed X fields for a grower in a specified state, prefer `my-farm-advisor/data-pipeline/scripts/install.sh --prepare-shared-data --seed-grower-slug <slug> --seed-state <state> --seed-field-count <n>`.
 - Farm weather defaults are `--weather-backend zarr`, `--weather-start-year 2021`, `--weather-end-year 2025`, and `--weather-time-standard lst`. Use `--weather-backend api` only for small legacy NASA POWER REST API debug pulls.
 - Use `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src/scripts/ingest/bootstrap_farm_from_county.py` before rebuilds when a county bootstrap should create or append field boundaries and inventory mappings.
 - The rebuild coordinates `field-boundaries`, `ssurgo-soil`, `nasa-power-weather`, `cdl-cropland`, `farm-intelligence-reporting`, and `ssurgo-poster-cards`.
