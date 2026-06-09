@@ -17,7 +17,7 @@ Read `../INDEX.md` first, then `../../README.md` and `../../SKILL.md` for routin
 - Use this workflow for field posters, farm overview reports, idempotent refreshes, and composable reporting.
 - Keep business logic in modules, not one-off scripts.
 - Preserve the public API names `FieldReportingConfig`, `StepManifest`, `build_step_manifest(...)`, `step_is_stale(...)`, `build_field_context(...)`, and `build_farm_summary(...)` when editing reporting code.
-- Canonical reporting datasets belong under `data/my-farm-advisor/growers/<grower>/farms/<farm>/derived/` and `data/my-farm-advisor/shared/`; report outputs belong under `derived/reports/`.
+- Canonical reporting datasets belong under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower>/farms/<farm>/derived/` and `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/`; report outputs belong under farm-level `derived/reports/`.
 - Self-contained HTML should embed report data so it can open without a backing server.
 
 ## Local validation
