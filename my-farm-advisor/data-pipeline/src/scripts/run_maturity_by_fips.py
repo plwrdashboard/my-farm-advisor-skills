@@ -138,9 +138,13 @@ def main() -> int:
         print(json.dumps(output_index, indent=2, sort_keys=True))
         return 0
 
-    geoadmin_output = (
-        Path(output_index["geoadmin_root"]) / "l2_counties" / "metadata.json"
-    )
+    geoadmin_root = Path(output_index["geoadmin_root"])
+    geoadmin_outputs = [
+        geoadmin_root / "l0_countries" / "countries.geojson",
+        geoadmin_root / "l1_states" / "states_usa.geojson",
+        geoadmin_root / "l2_counties" / "counties_usa.geojson",
+        geoadmin_root / "l2_counties" / "fips_lookup.parquet",
+    ]
     field_fips_output = Path(output_index["field_fips_summary"])
     manifest_path = shared_manifest_dir() / f"maturity_by_fips_{args.year}.json"
     manifest = read_json(manifest_path, default={}) or {}
@@ -182,7 +186,7 @@ def main() -> int:
     steps: list[tuple[str, list[Path], list[str]]] = [
         (
             "geoadmin",
-            [geoadmin_output],
+            geoadmin_outputs,
             [
                 sys.executable,
                 str(SCRIPTS_ROOT / "ingest" / "download_geoadmin.py"),

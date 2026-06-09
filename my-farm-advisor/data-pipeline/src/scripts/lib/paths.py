@@ -288,6 +288,14 @@ def shared_cdl_raster_dir() -> Path:
     return shared_cdl_dir() / "rasters"
 
 
+def shared_cdl_state_raster_path(year: int, state_fips: str) -> Path:
+    return shared_cdl_raster_dir() / f"CDL_{year}_{state_fips.zfill(2)}.tif"
+
+
+def shared_cdl_conus_raster_path(year: int) -> Path:
+    return shared_cdl_raster_dir() / f"CDL_{year}_CONUS.tif"
+
+
 def shared_cdl_derived_dir() -> Path:
     return shared_cdl_dir() / "derived"
 
@@ -423,6 +431,14 @@ def shared_corn_rm_csv_path(year: int) -> Path:
     return shared_corn_maturity_tables_dir() / f"rm_by_fips_{year}.csv"
 
 
+def shared_corn_rm_average_table_path(start_year: int, end_year: int) -> Path:
+    return shared_corn_maturity_tables_dir() / f"rm_by_fips_{start_year}_{end_year}_average.parquet"
+
+
+def shared_corn_rm_average_csv_path(start_year: int, end_year: int) -> Path:
+    return shared_corn_maturity_tables_dir() / f"rm_by_fips_{start_year}_{end_year}_average.csv"
+
+
 def shared_soybean_maturity_dir() -> Path:
     return SHARED_ROOT / "soybean_maturity"
 
@@ -453,6 +469,14 @@ def shared_soybean_mg_table_path(year: int) -> Path:
 
 def shared_soybean_mg_csv_path(year: int) -> Path:
     return shared_soybean_maturity_tables_dir() / f"mg_by_fips_{year}.csv"
+
+
+def shared_soybean_mg_average_table_path(start_year: int, end_year: int) -> Path:
+    return shared_soybean_maturity_tables_dir() / f"mg_by_fips_{start_year}_{end_year}_average.parquet"
+
+
+def shared_soybean_mg_average_csv_path(start_year: int, end_year: int) -> Path:
+    return shared_soybean_maturity_tables_dir() / f"mg_by_fips_{start_year}_{end_year}_average.csv"
 
 
 def ensure_parent(path: Path) -> Path:

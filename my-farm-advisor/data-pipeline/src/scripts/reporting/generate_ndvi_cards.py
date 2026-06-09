@@ -60,6 +60,7 @@ from paths import (  # noqa: E402
     field_satellite_dir,
     field_summary_path,
     field_tables_dir,
+    shared_cdl_conus_raster_path,
     shared_cdl_raster_dir,
 )  # pyright: ignore[reportMissingImports]
 from satellite_imagery import write_single_band_raster  # noqa: E402
@@ -161,7 +162,10 @@ def _read_resampled_like(
 
 
 def _shared_cdl_raster_path(year: int, state_fips: str = "19") -> Path:
-    return shared_cdl_raster_dir() / f"CDL_{year}_{state_fips}.tif"
+    state_path = shared_cdl_raster_dir() / f"CDL_{year}_{state_fips}.tif"
+    if state_path.exists():
+        return state_path
+    return shared_cdl_conus_raster_path(year)
 
 
 def _field_state_fips_lookup() -> dict[str, str]:
