@@ -587,7 +587,7 @@ PY` exits `0` after created files exist.
 
   **Commit**: YES | Message: `test(dem): add terrain smoke validation` | Files: [`my-farm-advisor/terrain/dem-terrain/**`, `my-farm-advisor/data-pipeline/**`]
 
-- [ ] 13. Validate northern Illinois runtime and fallback behavior
+- [x] 13. Validate northern Illinois runtime and fallback behavior
 
   **What to do**: Run the implemented pipeline against existing runtime fields at `.my-farm-advisor-runtime/data-pipeline/growers/northern-il-grower/farms/dekalb-ten-field-test` using safe runtime mode. First run `--dry-run --limit-fields 10`; then run live DEM only if required credentials/network are available and user/environment allows, otherwise run offline/source-mock mode over the 10 real field boundaries. Also explicitly test fallback branches with mocked/no-1m scenarios and DSM-only global mock scenario. Capture evidence summaries, not large outputs.
   **Must NOT do**: Do not commit runtime outputs; do not delete user runtime data; do not perform huge county downloads.
