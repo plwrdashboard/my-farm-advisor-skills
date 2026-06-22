@@ -1,4 +1,19 @@
-"""DEM terrain contract constants, schema helpers, and source resolver types."""
+"""DEM terrain contract constants, schema helpers, source resolver, and raster helpers."""
+
+from .raster_processing import (
+    DEFAULT_BUFFER_METERS,
+    DEFAULT_FIELD_CRS,
+    AnalysisGeometry,
+    RasterOutputRecord,
+    clip_dem_tiles_to_buffer,
+    file_size,
+    nodata_ratio,
+    prepare_analysis_geometry,
+    transform_buffered_bounds_to_source_crs,
+    utm_crs_for_lonlat,
+    vertical_datum_warning,
+    write_raster_atomic,
+)
 
 from .source_resolver import (
     ADAPTER_ALOS_AW3D30,
@@ -144,6 +159,7 @@ __all__ = [
     "ADAPTER_SRTM_COMPATIBLE",
     "ADAPTER_USGS_TNM",
     "ALOSAW3D30Adapter",
+    "AnalysisGeometry",
     "GlobalDEMAssetReference",
     "ALOS_ITEMS_URL",
     "ALOS_COLLECTION_URL",
@@ -151,6 +167,8 @@ __all__ = [
     "CLIPPED_DEM_FILENAME",
     "COARSE_FALLBACK_WARNING",
     "CONDITIONED_DEM_FILENAME",
+    "DEFAULT_BUFFER_METERS",
+    "DEFAULT_FIELD_CRS",
     "DATA_PIPELINE_DATA_ROOT_ENV",
     "DEFAULT_ILLINOIS_ILHMP_CATALOG",
     "DEFAULT_MAX_DEFAULT_DOWNLOAD_SIZE_MB",
@@ -226,6 +244,7 @@ __all__ = [
     "OutputAssetSchemaField",
     "ProductDefinition",
     "RuntimePathTemplates",
+    "RasterOutputRecord",
     "SourceAOI",
     "SourceAdapter",
     "SourceAdapterProtocol",
@@ -244,12 +263,20 @@ __all__ = [
     "buffer_wgs84_bbox",
     "catalog_record_to_candidate",
     "candidate_provenance",
+    "clip_dem_tiles_to_buffer",
     "discover_illinois_context",
     "download_with_retries",
     "estimate_county_context",
+    "file_size",
     "instantiate_default_adapters",
     "parse_tnm_products",
+    "nodata_ratio",
+    "prepare_analysis_geometry",
     "rank_candidates",
     "select_best_candidate",
     "sha256_file",
+    "transform_buffered_bounds_to_source_crs",
+    "utm_crs_for_lonlat",
+    "vertical_datum_warning",
+    "write_raster_atomic",
 ]

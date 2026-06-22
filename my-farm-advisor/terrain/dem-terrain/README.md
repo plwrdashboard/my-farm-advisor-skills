@@ -1,6 +1,6 @@
 # DEM Terrain
 
-This package documents the field-level DEM terrain contract for My Farm Advisor. It defines reusable routing docs, source provenance, output names, manifest fields, and source resolver policy interfaces. It does not download DEM tiles, process rasters, create runtime directories, or write generated assets.
+This package documents the field-level DEM terrain contract for My Farm Advisor. It defines reusable routing docs, source provenance, output names, manifest fields, source resolver policy interfaces, and local raster clipping primitives. It does not discover providers, download DEM tiles, create runtime directories, or write generated assets during import.
 
 Use it when a farm request needs elevation source selection, slope, aspect, hillshade, curvature, flow accumulation, terrain wetness, depression depth, relative elevation, erosion proxies, or DEM provenance. For quick navigation, start with [SKILL.md](SKILL.md) and [INDEX.md](INDEX.md).
 
@@ -18,6 +18,12 @@ Generated and downloaded DEM assets are runtime-only and must stay out of Git. D
 | Source cache | `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/dem/<adapter>/` |
 
 The contract module exposes these as string templates only. Importing `dem_terrain` is safe in a clean checkout and does not require `DATA_PIPELINE_DATA_ROOT` to exist.
+
+## Raster clipping primitives
+
+`src/dem_terrain/raster_processing.py` provides the v1 local raster primitive for already-available DEM tiles. It selects a projected analysis CRS from the field centroid, buffers the field in meters after projection, transforms the buffered bounds to source CRS for tile reads, mosaics source tiles in source CRS, reprojects once to the analysis CRS, and writes a compressed/tiled GeoTIFF through an atomic temporary file. High-latitude fields outside the UTM valid range use explicit polar stereographic fallbacks with warnings rather than silent CRS guessing.
+
+Synthetic validation evidence for this primitive is stored as text/JSON summaries only under `.sisyphus/evidence/`; temporary GeoTIFF fixtures are written under `/tmp` and should not be committed.
 
 ## Source hierarchy
 
