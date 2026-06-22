@@ -1,6 +1,8 @@
-# DEM Terrain Contract
+# DEM Terrain
 
-This package defines the foundational runtime contract for field-level DEM terrain products in My Farm Advisor. It intentionally contains only deterministic constants, dataclasses, product names, output schema fields, manifest schema fields, and source resolver policy interfaces; it does not download DEM tiles, process rasters, create runtime directories, or write generated assets.
+This package documents the field-level DEM terrain contract for My Farm Advisor. It defines reusable routing docs, source provenance, output names, manifest fields, and source resolver policy interfaces. It does not download DEM tiles, process rasters, create runtime directories, or write generated assets.
+
+Use it when a farm request needs elevation source selection, slope, aspect, hillshade, curvature, flow accumulation, terrain wetness, depression depth, relative elevation, erosion proxies, or DEM provenance. For quick navigation, start with [SKILL.md](SKILL.md) and [INDEX.md](INDEX.md).
 
 ## Runtime path contract
 
@@ -16,6 +18,28 @@ Generated and downloaded DEM assets are runtime-only and must stay out of Git. D
 | Source cache | `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/dem/<adapter>/` |
 
 The contract module exposes these as string templates only. Importing `dem_terrain` is safe in a clean checkout and does not require `DATA_PIPELINE_DATA_ROOT` to exist.
+
+## Source hierarchy
+
+The source resolver policy prefers coverage, terrain surface quality, resolution, source precedence, date, direct no-auth access, and smaller downloads. Concrete discovery and download adapters are future work, but the documented hierarchy is already fixed for downstream tasks.
+
+### United States
+
+1. USGS TNMAccess 3DEP 1 meter direct GeoTIFF source.
+2. Illinois Height Modernization Program and ISGS when the AOI intersects Illinois and the candidate is equal or better by resolution, recency, and surface type.
+3. USGS 10 meter 3DEP fallback.
+4. USGS 30 meter 3DEP fallback with a quality warning when field-level interpretation is limited.
+5. Optional OpenTopography only when explicitly configured.
+
+### Global
+
+1. Registered national or regional provider, when configured for the AOI.
+2. NASADEM global fallback.
+3. Copernicus GLO-30 DSM fallback with DSM warning.
+4. ALOS AW3D30 DSM fallback with DSM warning.
+5. SRTM-compatible fallback when no better candidate exists.
+
+See [PROVENANCE.md](PROVENANCE.md) for provider rationale, source notes, and Open-Elevation policy.
 
 ## Product filenames
 
@@ -40,6 +64,8 @@ The required runtime products are:
 - `erosion_proxy.tif`
 
 Summary outputs are `dem_terrain_summary.csv` and `dem_terrain_summary.json`. The manifest filename is `dem_terrain_manifest.json`.
+
+These outputs are runtime products, not committed examples. Later raster and ingest tasks should write them under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline` using the path templates in [`src/dem_terrain/terrain_contract.py`](src/dem_terrain/terrain_contract.py).
 
 ## Manifest schema
 
@@ -69,6 +95,12 @@ For U.S. fields, source precedence is USGS TNM 3DEP 1m, then Illinois ILHMP/ISGS
 
 The resolver must not fail solely because only 30m coverage exists. It should still return the best raster candidate with a quality warning. If a DSM fallback wins, the selection must include a warning that elevations may include vegetation, buildings, or other above-ground objects and must not be represented as bare-earth DTM.
 
+## Hydrology and interpretation warnings
+
+Hydrology products need careful labeling. Raw clipped DEMs and conditioned DEMs are separate outputs, so a downstream process must not silently replace the source DEM with a filled or breached raster. Flow direction, flow accumulation, wetness index, depression depth, and erosion proxy products should record the conditioning method in the manifest.
+
+If a hydrology backend is unavailable, downstream tasks should either skip hydrology-dependent outputs with structured warnings or generate only products that can be computed safely. DSM fallbacks need explicit warnings because vegetation, buildings, and other above-ground objects can distort slope, flow, depression, wetness, and erosion interpretation.
+
 ## Open-Elevation rule
 
 Hosted Open-Elevation API is not used by this skill. Do not call the hosted service for discovery, ranking, or elevation sampling.
@@ -78,3 +110,13 @@ Open-Elevation GitHub materials are research-only. The bundled data acquisition 
 ## Git and asset boundary
 
 Do not commit generated DEM `.tif`, preview `.png`, downloaded DEM source tiles, cache folders, runtime manifests, or runtime summaries. This package is the schema and naming contract that later source resolvers, adapters, raster processors, and validators will consume.
+
+## Validation
+
+After documentation or routing changes, run from the repository root:
+
+```bash
+./scripts/validate.sh
+```
+
+For this documentation package, required files are `SKILL.md`, `README.md`, `PROVENANCE.md`, and `INDEX.md`. Keep those files present before adding adapter or raster code.
