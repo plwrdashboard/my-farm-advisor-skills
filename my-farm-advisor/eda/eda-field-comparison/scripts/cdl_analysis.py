@@ -129,6 +129,36 @@ def plot_rotation_diversity(df, out_dir):
     print(f"  Created: {fpath}")
 
 
+def plot_corn_vs_soybean(df, out_dir):
+    grower = df["grower"].iloc[0]
+    # For each field, get dominant pct for Corn and Soybeans across all years
+    crops_of_interest = ["Corn", "Soybeans"]
+    subset = df[df["crop_name"].isin(crops_of_interest)].copy()
+    if subset.empty:
+        print(f"  Skipping corn-vs-soybean for {grower}: no Corn or Soybeans found")
+        return
+
+    # Average pct per field per crop across years
+    avg_pct = subset.groupby(["field_id", "crop_name"])["pct"].mean().reset_index()
+    pivot = avg_pct.pivot(index="field_id", columns="crop_name", values="pct").fillna(0)
+
+    if "Corn" not in pivot.columns or "Soybeans" not in pivot.columns:
+        print(f"  Skipping corn-vs-soybean for {grower}: missing one or both crops")
+        return
+
+    plt.figure(figsize=(8, 8))
+    plt.scatter(pivot["Corn"], pivot["Soybeans"], s=100, alpha=0.7, edgecolors="k")
+    plt.title(f"Corn vs Soybean Dominance – {grower}", fontsize=14, fontweight="bold")
+    plt.xlabel("Avg Corn Coverage (%)", fontsize=12)
+    plt.ylabel("Avg Soybean Coverage (%)", fontsize=12)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    fpath = os.path.join(out_dir, f"{grower}_corn_vs_soybean_scatter.png")
+    plt.savefig(fpath, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"  Created: {fpath}")
+
+
 def plot_state_crop_split(combined_df, out_dir):
     """Create a stacked bar chart of Corn vs Soybeans vs Other by state (latest year)."""
     if combined_df.empty:
@@ -253,6 +283,7 @@ def main():
         print(f"Processing {grower}...")
         plot_composition_stacked(df, out_dir)
         plot_rotation_diversity(df, out_dir)
+        plot_corn_vs_soybean(df, out_dir)
 
     # Cross-grower state-level plot
     if not combined.empty:

@@ -117,6 +117,29 @@ def plot_annual_precip(df, out_dir):
     print(f"  Created: {fpath}")
 
 
+def plot_temp_vs_precip(df, out_dir):
+    grower = df["grower"].iloc[0]
+    annual = df.groupby("year").agg({
+        "T2M": "mean",
+        "PRECTOTCORR": "sum"
+    }).reset_index()
+    annual.columns = ["year", "mean_temp_c", "total_precip_mm"]
+
+    plt.figure(figsize=(8, 8))
+    plt.scatter(annual["mean_temp_c"], annual["total_precip_mm"], s=120, alpha=0.7, edgecolors="k")
+    for _, row in annual.iterrows():
+        plt.annotate(str(int(row["year"])), (row["mean_temp_c"], row["total_precip_mm"]), textcoords="offset points", xytext=(5, 5), fontsize=9)
+    plt.title(f"Mean Temperature vs Total Precipitation – {grower}", fontsize=14, fontweight="bold")
+    plt.xlabel("Mean Annual Temperature (°C)", fontsize=12)
+    plt.ylabel("Total Annual Precipitation (mm)", fontsize=12)
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    fpath = os.path.join(out_dir, f"{grower}_temp_vs_precip_scatter.png")
+    plt.savefig(fpath, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"  Created: {fpath}")
+
+
 def plot_state_gdd_comparison(all_dfs, out_dir):
     """Create a state-level cumulative GDD comparison with frost dates (latest year)."""
     if not all_dfs:
@@ -234,6 +257,7 @@ def main():
         print(f"Processing {grower}...")
         plot_annual_temp(df, out_dir)
         plot_annual_precip(df, out_dir)
+        plot_temp_vs_precip(df, out_dir)
 
     # Cross-grower state-level GDD comparison
     print("Generating state-level GDD comparison...")
