@@ -43,6 +43,18 @@ DRY_SPELL_MAX_PRECIP_MM = 1.0
 GROWING_SEASON_DOY_START = 90   # ~Apr 1 for this latitude
 GROWING_SEASON_DOY_END = 300    # ~Oct 27
 
+# ETc / FAO-56 constants
+KC_INI = 0.30       # bare soil (planting → emergence)
+KC_MID = 1.15       # full canopy (VT → R3)
+KC_END = 0.70       # late season (R5 onward)
+ALBEDO = 0.23       # grass reference surface
+SIGMA = 4.903e-9    # Stefan-Boltzmann (MJ/K⁴/m²/day)
+
+# Base GDD thresholds for 114 RM hybrid; scaled by target RM/114
+_BASE_STAGE_THRESHOLDS = [(120, 1415), (1415, 1800), (1800, 2190)]
+_STAGE_LABELS = ["VE-VT", "R1-R3", "R4-R5"]
+_STAGE_COLORS = ["#2e7d32", "#1565c0", "#e65100"]
+
 XAXIS_DOY_MIN = 60    # March 1
 XAXIS_DOY_MAX = 334   # November 30
 MONTH_TICKS = {60: "Mar", 91: "Apr", 121: "May", 152: "Jun",
@@ -323,6 +335,146 @@ def compute_dry_spells(df: pd.DataFrame, growing_season_only: bool = True) -> li
 
 
 # ---------------------------------------------------------------------------
+#  ETc computation (FAO-56 Penman-Monteith)
+# ---------------------------------------------------------------------------
+def _power_elevation(lat: float, lon: float) -> float:
+    """Fetch elevation from NASA POWER API for a lat/lon."""
+    import json, urllib.request
+    url = (f"https://power.larc.nasa.gov/api/temporal/daily/point"
+           f"?parameters=T2M&latitude={lat}&longitude={lon}"
+           f"&start=20250101&end=20250103&community=RE&format=JSON")
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        data = json.load(resp)
+    coord = data.get("geometry", {}).get("coordinates", [])
+    return float(coord[2]) if len(coord) >= 3 else 0.0
+
+
+def _hargreaves_ra(lat_rad: float, doy: np.ndarray) -> np.ndarray:
+    """Extraterrestrial radiation (MJ/m²/day) — FAO-56 Eq 21, 23, 24."""
+    dr = 1 + 0.033 * np.cos(2 * np.pi / 365 * doy)
+    delta = 0.409 * np.sin(2 * np.pi / 365 * doy - 1.39)
+    ws = np.arccos(-np.tan(lat_rad) * np.tan(delta))
+    ra = (24 * 60 / np.pi) * 0.0820 * dr * (
+        ws * np.sin(lat_rad) * np.sin(delta)
+        + np.cos(lat_rad) * np.cos(delta) * np.sin(ws)
+    )
+    return ra
+
+
+def compute_eto_fao56(
+    tmax, tmin, tmean, rs, u10, rh, lat_deg: float, elev: float, doy: np.ndarray
+) -> np.ndarray:
+    """Daily FAO-56 Penman-Monteith ETo (mm/day)."""
+    lat = np.radians(lat_deg)
+    u2 = u10 * 4.87 / np.log(67.8 * 10 - 5.42)
+    es_tmean = 0.6108 * np.exp(17.27 * tmean / (tmean + 237.3))
+    delta = 4098 * es_tmean / (tmean + 237.3) ** 2
+    p = 101.3 * ((293 - 0.0065 * elev) / 293) ** 5.26
+    gamma = 0.665e-3 * p
+    es_tmax = 0.6108 * np.exp(17.27 * tmax / (tmax + 237.3))
+    es_tmin = 0.6108 * np.exp(17.27 * tmin / (tmin + 237.3))
+    es = (es_tmax + es_tmin) / 2
+    ea = es * rh / 100
+    ra = _hargreaves_ra(lat, doy)
+    rso = np.maximum((0.75 + 2e-5 * elev) * ra, 0.01)
+    rns = (1 - ALBEDO) * rs
+    tmax_k = tmax + 273.16
+    tmin_k = tmin + 273.16
+    rnl = np.maximum(
+        SIGMA * (tmax_k ** 4 + tmin_k ** 4) / 2
+        * (0.34 - 0.14 * np.sqrt(ea))
+        * (1.35 * rs / rso - 0.35),
+        0,
+    )
+    rn = rns - rnl
+    numer1 = 0.408 * delta * rn
+    numer2 = gamma * (900 / (tmean + 273)) * u2 * (es - ea)
+    denom = delta + gamma * (1 + 0.34 * u2)
+    return np.maximum((numer1 + numer2) / denom, 0)
+
+
+def compute_stage_dates(
+    gdd_cum: pd.Series, rm_value: float
+) -> tuple[list[int | None], list[int | None]]:
+    """Return (start_doy_list, end_doy_list) for the three growth stages."""
+    scale = rm_value / 114.0
+    starts, ends = [], []
+    for lo, hi in _BASE_STAGE_THRESHOLDS:
+        lo_s, hi_s = int(round(lo * scale)), int(round(hi * scale))
+        cum = gdd_cum.values
+        doys = gdd_cum.index.values
+        d_lo = int(doys[np.argmax(cum >= lo_s)]) if np.any(cum >= lo_s) else None
+        d_hi = int(doys[np.argmax(cum >= hi_s)]) if np.any(cum >= hi_s) else None
+        starts.append(d_lo)
+        ends.append(d_hi)
+    return starts, ends
+
+
+def compute_etc(
+    weather_df: pd.DataFrame, lat: float, elev: float, rm_value: float
+) -> pd.DataFrame:
+    """Compute daily ETc and return DataFrame with etc_mm, kc, cum_etc."""
+    df = weather_df.copy()
+    lat_deg = float(df["lat"].iloc[0]) if "lat" in df.columns else lat
+    doy = df["doy"].values
+    rs = df["ALLSKY_SFC_SW_DWN"].values
+    u10 = df["WS10M"].values
+    rh = df["RH2M"].values
+    eto = compute_eto_fao56(
+        df["T2M_MAX"].values, df["T2M_MIN"].values, df["T2M"].values,
+        rs, u10, rh, lat_deg, elev, doy,
+    )
+    df["eto_mm"] = eto
+
+    # Planting date: first 5d block all tavg >= 10 after Apr 1
+    df["tavg"] = (df["T2M_MAX"] + df["T2M_MIN"]) / 2
+    spring = df[(df["doy"] >= 91) & (df["doy"] <= 152)]
+    plant_doy = 121  # fallback May 1
+    for i in range(len(spring) - 4):
+        if all(spring.iloc[i:i+5]["tavg"] >= 10):
+            plant_doy = int(spring.iloc[i]["doy"])
+            break
+
+    # Stage dates
+    gdd_cum = df["gdd_cum"]
+    starts, ends = compute_stage_dates(gdd_cum, rm_value)
+
+    # Assign Kc per day
+    def _kc(doy_val):
+        if doy_val < plant_doy:
+            return 0.0
+        s0, s1, s2 = starts
+        e0, e1, e2 = ends
+        if s0 is None or doy_val < s0:
+            return KC_INI
+        if e0 is None or doy_val < e0:
+            total = max((e0 - s0), 1)
+            frac = (doy_val - s0) / total if doy_val >= s0 else 0
+            return KC_INI + (KC_MID - KC_INI) * min(frac, 1.0)
+        if s1 is None or doy_val < s1:
+            return KC_MID
+        if e1 is None or doy_val < e1:
+            return KC_MID
+        if s2 is None or doy_val < s2:
+            total = max((e1 - s1), 1) if e1 and s1 else 1
+            frac = (doy_val - s1) / total if doy_val >= s1 else 0
+            return KC_MID + (KC_END - KC_MID) * min(frac, 1.0)
+        if e2 is None or doy_val < e2:
+            total = max((e2 - s2), 1) if e2 and s2 else 1
+            frac = (doy_val - s2) / total if doy_val >= s2 else 0
+            return KC_MID + (KC_END - KC_MID) * min(frac, 1.0)
+        return KC_END
+
+    df["kc"] = df["doy"].apply(_kc)
+    df["etc_mm"] = df["eto_mm"] * df["kc"]
+    df["cum_etc"] = df["etc_mm"].cumsum()
+    df.attrs["stage_starts"] = starts
+    df.attrs["stage_ends"] = ends
+    df.attrs["plant_doy"] = plant_doy
+    return df
+
+
+# ---------------------------------------------------------------------------
 #  Plotting
 # ---------------------------------------------------------------------------
 def _apply_xaxis(ax, show_labels: bool = False):
@@ -343,13 +495,15 @@ def build_dashboard(
     field_slug: str,
     year: int,
     output_path: Path,
+    etc_df: pd.DataFrame | None = None,
 ):
     """Create the vertical-stack multi-panel dashboard."""
     has_weather = not weather_df.empty
     has_ndvi = not ndvi_df.empty
     has_cdl = not cdl_df.empty
+    has_etc = etc_df is not None and not etc_df.empty
 
-    # 3 panels max: NDVI, GDD, Precip+Stress
+    # Up to 5 panels: NDVI, GDD, Temp, Precip, ETc
     n_panels = 0
     panel_heights = []
     if has_ndvi:
@@ -358,6 +512,9 @@ def build_dashboard(
     if has_weather:
         n_panels += 3  # GDD + Temp + Precip
         panel_heights.extend([1, 1, 1.4])
+    if has_etc:
+        n_panels += 1
+        panel_heights.append(1.4)
 
     if n_panels == 0:
         print("  No data to plot.", file=sys.stderr)
@@ -545,6 +702,64 @@ def build_dashboard(
         ax.legend(handles=legend_elements, fontsize=7.5, loc="upper right",
                   ncol=2, framealpha=0.85)
 
+    # ---- 5. ETc & Water Balance ----
+    if has_etc:
+        ax = fig.add_subplot(gs[ax_idx])
+        ax_idx += 1
+
+        stage_starts = etc_df.attrs.get("stage_starts", [])
+        stage_ends = etc_df.attrs.get("stage_ends", [])
+
+        # Stage bands
+        for i, label in enumerate(_STAGE_LABELS):
+            s = stage_starts[i] if i < len(stage_starts) else None
+            e = stage_ends[i] if i < len(stage_ends) else None
+            if s is not None:
+                end = e if e is not None else XAXIS_DOY_MAX
+                ax.axvspan(s, end, alpha=0.08, color=_STAGE_COLORS[i], zorder=0)
+
+        # Daily ETc bars
+        ax.bar(etc_df["doy"], etc_df["etc_mm"], width=0.8, color="#2e7d32",
+               alpha=0.55, edgecolor="none", zorder=2, label="Daily ETc")
+
+        # Cumulative lines on twin axis
+        ax_twin = ax.twinx()
+        cum_etc = etc_df["cum_etc"]
+        cum_precip = etc_df["PRECTOTCORR"].cumsum()
+        ax_twin.plot(etc_df["doy"], cum_etc, "-", color="#1b5e20", linewidth=2,
+                     zorder=4, label="Cumulative ETc")
+        ax_twin.plot(etc_df["doy"], cum_precip, "-", color="#1565c0", linewidth=2,
+                     zorder=4, label="Cumulative Precip", linestyle="--")
+
+        total_etc = float(cum_etc.iloc[-1])
+        total_precip = float(cum_precip.iloc[-1])
+        deficit = total_etc - total_precip
+        ax_twin.set_ylabel("Cumulative (mm)", fontsize=11, color="#333")
+        ax_twin.set_ylim(0, max(cum_etc.max(), cum_precip.max()) * 1.25)
+        ax_twin.tick_params(axis="y", labelcolor="#333")
+
+        deficit_color = "darkred" if deficit > 0 else "darkgreen"
+        label = f"Water deficit: +{deficit:.0f} mm" if deficit > 0 else f"Water surplus: {deficit:.0f} mm"
+        ax.text(0.98, 0.95, label, transform=ax.transAxes, ha="right", va="top",
+                fontsize=10, fontweight="bold", color=deficit_color,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85, edgecolor=deficit_color))
+
+        ax.set_ylim(0, max(etc_df["etc_mm"].max() * 1.6, 8))
+        ax.set_ylabel("Daily ETc (mm)", fontsize=11, color="#2e7d32")
+        ax.set_title("ETc & Water Balance (FAO-56 Penman-Monteith)", fontsize=12,
+                     fontweight="bold", loc="left")
+        ax.grid(True, alpha=0.3, axis="y")
+        _apply_xaxis(ax, show_labels=True)
+
+        # Stage legend
+        for i, label in enumerate(_STAGE_LABELS):
+            ax.axvspan(0, 0, alpha=0.4, color=_STAGE_COLORS[i], label=label)
+
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax_twin.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, fontsize=7.5,
+                  loc="upper left", ncol=2, framealpha=0.85)
+
     plt.savefig(output_path, dpi=200, bbox_inches="tight")
     print(f"  Dashboard saved: {output_path}")
 
@@ -558,6 +773,10 @@ def main():
     parser.add_argument("--farm", default="minnesota-north-minnesota")
     parser.add_argument("--field", default="osm-1491018233")
     parser.add_argument("--year", type=int, required=True, help="Target year")
+    parser.add_argument("--rm-value", type=int, default=None,
+                        help="Corn relative maturity (e.g. 99, 114). Computes ETc & water balance panel.")
+    parser.add_argument("--elevation", type=float, default=None,
+                        help="Field elevation in metres. Fetched from NASA POWER if omitted.")
     parser.add_argument("--data-root",
                         default="/home/coder/my-farm-advisor-runtime/data-pipeline")
     args = parser.parse_args()
@@ -627,6 +846,31 @@ def main():
         print("  [INFO] No NDVI scenes for this year.")
     print()
 
+    # Compute ETc if RM value provided
+    etc_df = pd.DataFrame()
+    if args.rm_value is not None and not weather_df.empty:
+        lat = weather_df["lat"].iloc[0] if "lat" in weather_df.columns else None
+        lon = weather_df["lon"].iloc[0] if "lon" in weather_df.columns else None
+        elev = args.elevation
+        if elev is None and lat is not None and lon is not None:
+            print("  Fetching elevation from NASA POWER...")
+            elev = _power_elevation(lat, lon)
+            print(f"    Elevation: {elev:.1f} m")
+        elif elev is not None:
+            print(f"  Using provided elevation: {elev:.1f} m")
+        else:
+            print("  [WARN] Lat/lon not available; skipping ETc.")
+        if elev is not None:
+            print(f"  Computing daily ETc (RM {args.rm_value})...")
+            etc_df = compute_etc(weather_df, lat, elev, args.rm_value)
+            total_etc = etc_df["etc_mm"].sum()
+            total_precip = etc_df["PRECTOTCORR"].sum()
+            deficit = total_etc - total_precip
+            print(f"    Total ETc: {total_etc:.1f} mm")
+            print(f"    Total Precip: {total_precip:.1f} mm")
+            print(f"    Water balance: {'deficit' if deficit>0 else 'surplus'} {abs(deficit):.1f} mm")
+    print()
+
     # Save JSON summary
     summary = {
         "field": args.field,
@@ -662,7 +906,7 @@ def main():
     print(f"  Summary saved: {output_json}")
 
     # Build dashboard
-    build_dashboard(weather_df, ndvi_df, cdl_df, args.field, args.year, output_png)
+    build_dashboard(weather_df, ndvi_df, cdl_df, args.field, args.year, output_png, etc_df)
     print("  Done.")
 
 
