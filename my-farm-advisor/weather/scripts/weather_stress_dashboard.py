@@ -649,6 +649,24 @@ def build_etc_figure(etc_df: pd.DataFrame, year: int) -> go.Figure:
     return fig
 
 
+def compute_heat_stress_days(weather_df: pd.DataFrame) -> int:
+    if weather_df.empty:
+        return 0
+    return int((weather_df["T2M_MAX_F"] > 90).sum())
+
+
+def compute_first_deficit_date(etc_df: pd.DataFrame) -> str | None:
+    if etc_df.empty or "etc_mm" not in etc_df.columns or "PRECTOTCORR" not in etc_df.columns:
+        return None
+    df = etc_df.sort_values("doy")
+    cum_etc = df["etc_mm"].cumsum()
+    cum_precip = df["PRECTOTCORR"].cumsum()
+    deficit_mask = cum_etc > cum_precip
+    if not deficit_mask.any():
+        return None
+    return str(df.loc[deficit_mask.idxmax(), "date"].date())
+
+
 # ---------------------------------------------------------------------------
 # Dash app
 # ---------------------------------------------------------------------------
@@ -710,20 +728,51 @@ app.layout = html.Div(
             style={"padding": "1rem 2rem"},
             children=[
                 html.Div(
-                    style={"position": "relative"},
+                    style={"display": "grid", "gridTemplateColumns": "65fr 35fr", "gap": "1rem"},
                     children=[
-                        html.Div(id="crop-header", style={
-                            "position": "absolute", "top": "6px", "left": "6px",
-                            "right": "6px", "zIndex": 500,
-                            "background": "rgba(0,0,0,0.55)", "color": "white",
-                            "padding": "6px 14px", "fontSize": "0.85rem",
-                            "borderRadius": "6px", "textAlign": "center",
-                            "pointerEvents": "none",
-                        }, children=""),
-                        html.Div(id="map-container", style={
-                            "borderRadius": "8px", "overflow": "hidden",
-                            "boxShadow": "0 2px 12px rgba(0,0,0,0.12)",
-                        }),
+                        html.Div(
+                            style={"position": "relative"},
+                            children=[
+                                html.Div(id="crop-header", style={
+                                    "position": "absolute", "top": "6px", "left": "6px",
+                                    "right": "6px", "zIndex": 500,
+                                    "background": "rgba(0,0,0,0.55)", "color": "white",
+                                    "padding": "6px 14px", "fontSize": "0.85rem",
+                                    "borderRadius": "6px", "textAlign": "center",
+                                    "pointerEvents": "none",
+                                }, children=""),
+                                html.Div(id="map-container", style={
+                                    "borderRadius": "8px", "overflow": "hidden",
+                                    "boxShadow": "0 2px 12px rgba(0,0,0,0.12)",
+                                }),
+                            ],
+                        ),
+                        html.Div(
+                            style={
+                                "display": "flex", "flexDirection": "column", "gap": "1rem",
+                                "height": "550px",
+                            },
+                            children=[
+                                html.Div(id="callout-heat", style={
+                                    "flex": "1",
+                                    "background": "white", "borderRadius": "8px",
+                                    "boxShadow": "0 2px 12px rgba(0,0,0,0.12)",
+                                    "display": "flex", "flexDirection": "column",
+                                    "alignItems": "center", "justifyContent": "center",
+                                    "padding": "1.5rem", "textAlign": "center",
+                                    "borderTop": "4px solid #d62728",
+                                }, children=""),
+                                html.Div(id="callout-deficit", style={
+                                    "flex": "1",
+                                    "background": "white", "borderRadius": "8px",
+                                    "boxShadow": "0 2px 12px rgba(0,0,0,0.12)",
+                                    "display": "flex", "flexDirection": "column",
+                                    "alignItems": "center", "justifyContent": "center",
+                                    "padding": "1.5rem", "textAlign": "center",
+                                    "borderTop": "4px solid #1565c0",
+                                }, children=""),
+                            ],
+                        ),
                     ],
                 ),
             ],
@@ -899,6 +948,8 @@ def _update_map(field_id: str | None, year: int | None, fields: list[dict] | Non
     Output("temp-graph", "figure"),
     Output("precip-graph", "figure"),
     Output("etc-graph", "figure"),
+    Output("callout-heat", "children"),
+    Output("callout-deficit", "children"),
     Input("grower-dropdown", "value"),
     Input("field-dropdown", "value"),
     Input("year-dropdown", "value"),
@@ -918,12 +969,20 @@ def _update_stress_panels(
                            xref="paper", yref="paper", x=0.5, y=0.5)
         return fig
 
+    def _empty_callout():
+        return html.Div(
+            style={"color": "#aaa", "fontSize": "0.9rem"},
+            children="—",
+        )
+
     if not grower_slug or not field_id or not year or not fields:
-        return (_empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(), _empty_fig())
+        return (_empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(),
+                _empty_callout(), _empty_callout())
 
     field = next((f for f in fields if f["field_id"] == field_id), None)
     if not field:
-        return (_empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(), _empty_fig())
+        return (_empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(), _empty_fig(),
+                _empty_callout(), _empty_callout())
 
     try:
         weather_df = load_weather(field, year)
@@ -951,6 +1010,40 @@ def _update_stress_panels(
         traceback.print_exc()
         etc_df = pd.DataFrame()
 
+    def _build_callout_heat():
+        days = compute_heat_stress_days(weather_df)
+        return html.Div([
+            html.Div("Heat Stress Days", style={
+                "fontSize": "0.8rem", "fontWeight": 600, "color": "#d62728",
+                "textTransform": "uppercase", "letterSpacing": "0.05em",
+            }),
+            html.Div(str(days), style={
+                "fontSize": "3rem", "fontWeight": 700, "color": "#333",
+                "lineHeight": "1.2", "margin": "0.5rem 0",
+            }),
+            html.Div("days over 90°F", style={
+                "fontSize": "0.85rem", "color": "#777",
+            }),
+        ])
+
+    def _build_callout_deficit():
+        first_date = compute_first_deficit_date(etc_df)
+        return html.Div([
+            html.Div("Water Deficit Onset", style={
+                "fontSize": "0.8rem", "fontWeight": 600, "color": "#1565c0",
+                "textTransform": "uppercase", "letterSpacing": "0.05em",
+            }),
+            html.Div(first_date or "No deficit", style={
+                "fontSize": "2rem" if first_date else "1.2rem",
+                "fontWeight": 700, "color": "#333",
+                "lineHeight": "1.2", "margin": "0.5rem 0",
+            }),
+            html.Div(
+                "First day ETc exceeded precipitation" if first_date else "Cumulative ETc never exceeded precipitation",
+                style={"fontSize": "0.85rem", "color": "#777"},
+            ),
+        ])
+
     try:
         return (
             build_ndvi_figure(ndvi_df, year),
@@ -958,13 +1051,15 @@ def _update_stress_panels(
             build_temp_figure(weather_df, year),
             build_precip_figure(weather_df, year),
             build_etc_figure(etc_df, year),
+            _build_callout_heat(),
+            _build_callout_deficit(),
         )
     except Exception:
         print(f"  [ERROR] build_figures: {field_id}/{year}")
         traceback.print_exc()
         return (_empty_fig("Error loading data"), _empty_fig("Error loading data"),
                 _empty_fig("Error loading data"), _empty_fig("Error loading data"),
-                _empty_fig("Error loading data"))
+                _empty_fig("Error loading data"), _empty_callout(), _empty_callout())
 
 
 # ---------------------------------------------------------------------------
