@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, callback, dcc, html
-from dash_leaflet import Map, Marker, Polygon, Popup, TileLayer
+from dash_leaflet import Map, Marker, Polygon, Popup, TileLayer, Tooltip
 from plotly.subplots import make_subplots
 from shapely.geometry import shape
 
@@ -62,6 +62,15 @@ XAXIS_DOY_MIN = 60
 XAXIS_DOY_MAX = 334
 MONTH_TICKS = {60: "Mar", 91: "Apr", 121: "May", 152: "Jun",
                182: "Jul", 213: "Aug", 244: "Sep", 274: "Oct", 305: "Nov"}
+
+# SSURGO AWC color scale — sequential 5-bin from low (red) to high (green)
+AWC_BINS = [
+    (0, 3, "#d73027", "Very Low"),
+    (3, 5, "#fc8d59", "Low"),
+    (5, 7, "#fee08b", "Moderate"),
+    (7, 9, "#d9ef8b", "High"),
+    (9, 999, "#1a9850", "Very High"),
+]
 
 _CHART_THEME = {
     "paper_bgcolor": "#fafaf9",
@@ -183,6 +192,122 @@ def compute_padded_bounds(
         max_lat + lat_pad,
         max_lng + lng_pad,
     )
+
+
+def load_ssurgo_awc(field: dict) -> dict | None:
+    """Load pre-computed SSURGO AWC GeoJSON for a field.
+
+    Returns GeoJSON FeatureCollection dict, or None if not cached.
+    """
+    geojson_path = Path(field.get("geojson_path", ""))
+    awc_path = geojson_path.parent.parent / "derived" / "features" / "ssurgo_awc.geojson"
+    if not awc_path.exists():
+        return None
+    try:
+        return json.loads(awc_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def awc_to_color(aws_in: float) -> str:
+    """Map total AWS (inches in 0-100cm profile) to a fill color."""
+    if aws_in is None or (isinstance(aws_in, float) and (aws_in != aws_in)):
+        return "#cccccc"
+    for lo, hi, color, _ in AWC_BINS:
+        if lo <= aws_in < hi:
+            return color
+    return "#cccccc"
+
+
+def awc_label(aws_in: float) -> str:
+    if aws_in is None or (isinstance(aws_in, float) and (aws_in != aws_in)):
+        return "No data"
+    for lo, hi, _, label in AWC_BINS:
+        if lo <= aws_in < hi:
+            return label
+    return "No data"
+
+
+def build_awc_polygons(awc_data: dict) -> list:
+    """Build Dash Leaflet Polygon list from SSURGO AWC GeoJSON with tooltips."""
+    polygons = []
+    for feat in awc_data.get("features", []):
+        props = feat.get("properties", {})
+        geom = feat.get("geometry")
+        if not geom:
+            continue
+        aws_val = props.get("aws_in")
+        try:
+            aws_val = float(aws_val)
+        except (TypeError, ValueError):
+            aws_val = None
+        fill = awc_to_color(aws_val)
+        compname = props.get("compname", "Unknown")
+        aws_disp = f"{aws_val:.1f}" if aws_val is not None else "N/A"
+
+        rings: list[list] = []
+        if geom["type"] == "Polygon":
+            rings = [geom["coordinates"][0]]
+        elif geom["type"] == "MultiPolygon":
+            rings = [ring[0] for ring in geom["coordinates"]]
+        else:
+            continue
+
+        for coords in rings:
+            latlng = [[c[1], c[0]] for c in coords]
+            polygons.append(
+                Polygon(
+                    positions=latlng,
+                    color="white",
+                    weight=1,
+                    fillColor=fill,
+                    fillOpacity=0.65,
+                    children=[
+                        Tooltip(
+                            f"{compname}: {aws_disp} in AWC",
+                            sticky=True,
+                            direction="top",
+                        )
+                    ],
+                )
+            )
+    return polygons
+
+
+def compute_field_aws(awc_data: dict) -> float | None:
+    """Compute mean AWS across all polygons in the field."""
+    vals = []
+    for feat in awc_data.get("features", []):
+        v = feat.get("properties", {}).get("aws_in")
+        try:
+            v = float(v)
+            vals.append(v)
+        except (TypeError, ValueError):
+            continue
+    return sum(vals) / len(vals) if vals else None
+
+
+def build_awc_legend() -> html.Div:
+    items = []
+    for lo, hi, color, label in AWC_BINS:
+        hi_disp = f"{hi}" if hi < 999 else f"{lo}+"
+        items.append(html.Div(style={"display": "flex", "alignItems": "center",
+                                     "marginBottom": "2px"}, children=[
+            html.Div(style={"width": "14px", "height": "14px",
+                            "backgroundColor": color, "borderRadius": "2px",
+                            "marginRight": "6px", "border": "1px solid #ccc"}),
+            html.Span(f"{lo}-{hi_disp} in" if hi < 999 else f"{lo}+ in",
+                      style={"fontSize": "0.7rem", "color": "#333"}),
+        ]))
+    return html.Div(style={
+        "background": "rgba(255,255,255,0.9)", "borderRadius": "6px",
+        "padding": "8px 10px", "boxShadow": "0 1px 6px rgba(0,0,0,0.15)",
+        "fontSize": "0.75rem",
+    }, children=[
+        html.Div("AWC (0-100cm)", style={"fontWeight": 600, "fontSize": "0.75rem",
+                                          "marginBottom": "4px", "color": "#555"}),
+        *items,
+    ])
 
 
 def load_weather(field: dict, year: int) -> pd.DataFrame:
@@ -745,6 +870,11 @@ app.layout = html.Div(
                                     "borderRadius": "8px", "overflow": "hidden",
                                     "boxShadow": "0 2px 12px rgba(0,0,0,0.12)",
                                 }),
+                                html.Div(id="awc-legend", style={
+                                    "position": "absolute", "bottom": "10px",
+                                    "left": "10px", "zIndex": 1000,
+                                }),
+
                             ],
                         ),
                         html.Div(
@@ -865,59 +995,80 @@ def _load_fields_for_grower(grower_slug: str, year: int) -> tuple[list, list, st
     Output("field-info", "children"),
     Output("boundary-store", "data"),
     Output("crop-header", "children"),
+    Output("awc-legend", "children"),
     Input("field-dropdown", "value"),
     Input("year-dropdown", "value"),
     State("fields-store", "data"),
     prevent_initial_call=True,
 )
 def _update_map(field_id: str | None, year: int | None, fields: list[dict] | None) -> tuple:
-    if not field_id or not fields or not year:
+    def _empty_map(msg: str = ""):
         return (Map(center=[42.0, -95.0], zoom=5,
                     children=[TileLayer(url=ESRI_SATELLITE, attribution="Esri"),
                               TileLayer(url=ESRI_LABELS, attribution="Esri")],
                     style={"width": "100%", "height": "550px"}),
-                "No field selected", None, "")
+                msg, None, "", None)
+
+    if not field_id or not fields or not year:
+        return _empty_map("No field selected")
 
     field = next((f for f in fields if f["field_id"] == field_id), None)
     if not field:
-        return (Map(center=[42.0, -95.0], zoom=5,
-                    children=[TileLayer(url=ESRI_SATELLITE, attribution="Esri")],
-                    style={"width": "100%", "height": "550px"}),
-                f"Field {field_id} not found", None, "")
+        return _empty_map(f"Field {field_id} not found")
 
     coords = load_boundary_geojson(field["geojson_path"])
     if not coords:
-        return (Map(center=[42.0, -95.0], zoom=5,
-                    children=[TileLayer(url=ESRI_SATELLITE, attribution="Esri")],
-                    style={"width": "100%", "height": "550px"}),
-                f"Could not load boundary for {field_id}", None, "")
+        return _empty_map(f"Could not load boundary for {field_id}")
 
     latlng_coords = [[c[1], c[0]] for c in coords]
     min_lat, min_lng, max_lat, max_lng = compute_padded_bounds(coords)
     center = [(min_lat + max_lat) / 2, (min_lng + max_lng) / 2]
-
-    boundary = Polygon(positions=latlng_coords, color="#FFD700", weight=4,
-                       fillColor="#FFD700", fillOpacity=0.25)
-
     centroid_lat = sum(c[1] for c in coords) / len(coords)
     centroid_lng = sum(c[0] for c in coords) / len(coords)
 
-    m = Map(
-        center=center, zoom=15,
-        children=[
+    # Try loading pre-computed SSURGO AWC
+    awc_data = load_ssurgo_awc(field)
+    aws_mean = compute_field_aws(awc_data) if awc_data else None
+
+    popup_children = [html.Div([
+        html.B(field["field_id"]), html.Br(),
+        f"Farm: {field['farm_display']}", html.Br(),
+        f"Acres: {field['area_acres']:.1f}", html.Br(),
+        f"Crop: {field['crop']}", html.Br(),
+        f"Irrigation: {field['irrigation']}", html.Br(),
+        f"County: {field['county']}",
+    ])]
+    if aws_mean is not None:
+        popup_children[0].children.append(html.Br())
+        popup_children[0].children.append(
+            f"Soil AWC: {aws_mean:.1f} in (0-100cm)"
+        )
+
+    if awc_data and awc_data.get("features"):
+        awc_polys = build_awc_polygons(awc_data)
+        legend = build_awc_legend()
+        map_layers = [
+            TileLayer(url=ESRI_SATELLITE, attribution="Esri"),
+            TileLayer(url=ESRI_LABELS, attribution="Esri"),
+            *awc_polys,
+            Marker(position=[centroid_lat, centroid_lng],
+                   children=[Popup(children=popup_children)]),
+        ]
+    else:
+        boundary = Polygon(positions=latlng_coords, color="#FFD700", weight=4,
+                           fillColor="#FFD700", fillOpacity=0.25)
+        legend = None
+        map_layers = [
             TileLayer(url=ESRI_SATELLITE, attribution="Esri"),
             TileLayer(url=ESRI_LABELS, attribution="Esri"),
             boundary,
             Marker(position=[centroid_lat, centroid_lng],
-                   children=[Popup(children=[html.Div([
-                       html.B(field["field_id"]), html.Br(),
-                       f"Farm: {field['farm_display']}", html.Br(),
-                       f"Acres: {field['area_acres']:.1f}", html.Br(),
-                       f"Crop: {field['crop']}", html.Br(),
-                       f"Irrigation: {field['irrigation']}", html.Br(),
-                       f"County: {field['county']}",
-                   ])])]),
-        ],
+                   children=[Popup(children=popup_children)]),
+        ]
+
+    m = Map(
+        center=center, zoom=15,
+        children=map_layers,
         style={"width": "100%", "height": "550px"},
         bounds=[[min_lat, min_lng], [max_lat, max_lng]],
     )
@@ -930,6 +1081,11 @@ def _update_map(field_id: str | None, year: int | None, fields: list[dict] | Non
         html.Span(f"  |  County: {field['county']}"),
         html.Span(f"  |  Irrigation: {field['irrigation']}"),
     ])
+    if aws_mean is not None:
+        info.children.append(
+            html.Span(f"  |  Soil AWC: {aws_mean:.1f} in",
+                      style={"color": "#1B5E20", "fontWeight": 600})
+        )
 
     crop_label = load_cdl_crop(field["grower_slug"], field["farm_slug"], field["field_id"], year)
     if crop_label:
@@ -939,7 +1095,7 @@ def _update_map(field_id: str | None, year: int | None, fields: list[dict] | Non
     else:
         crop_header = "No CDL data"
 
-    return m, info, field, crop_header
+    return m, info, field, crop_header, legend
 
 
 @app.callback(
