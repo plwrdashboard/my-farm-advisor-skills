@@ -145,7 +145,7 @@ def _compute_etc(weather_df: pd.DataFrame, lat: float, elev: float, rm_value: fl
     for lo, hi in _BASE_STAGE_THRESHOLDS:
         lo_s, hi_s = int(round(lo * scale)), int(round(hi * scale))
         cum = gdd_cum.values
-        doys = gdd_cum.index.values
+        doys = df["doy"].values
         d_lo = int(doys[np.argmax(cum >= lo_s)]) if np.any(cum >= lo_s) else None
         d_hi = int(doys[np.argmax(cum >= hi_s)]) if np.any(cum >= hi_s) else None
         starts.append(d_lo)
@@ -156,6 +156,13 @@ def _compute_etc(weather_df: pd.DataFrame, lat: float, elev: float, rm_value: fl
             return 0.0
         s0, s1, s2 = starts
         e0, e1, e2 = ends
+        last_doy = int(df["doy"].max()) if "doy" in df.columns else 365
+        if e0 is None and s0 is not None:
+            e0 = last_doy
+        if e1 is None and s1 is not None:
+            e1 = last_doy
+        if e2 is None and s2 is not None:
+            e2 = last_doy
         if s0 is None or doy_val < s0:
             return KC_INI
         if e0 is None or doy_val < e0:
@@ -167,8 +174,8 @@ def _compute_etc(weather_df: pd.DataFrame, lat: float, elev: float, rm_value: fl
         if e1 is None or doy_val < e1:
             return KC_MID
         if s2 is None or doy_val < s2:
-            total = max((e1 - s1), 1) if e1 and s1 else 1
-            frac = (doy_val - s1) / total if doy_val >= s1 else 0
+            total = max((e2 - s2), 1) if e2 and s2 else 1
+            frac = (doy_val - s2) / total if doy_val >= s2 else 0
             return KC_MID + (KC_END - KC_MID) * min(frac, 1.0)
         if e2 is None or doy_val < e2:
             total = max((e2 - s2), 1) if e2 and s2 else 1
